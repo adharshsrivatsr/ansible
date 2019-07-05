@@ -196,7 +196,6 @@ backup_path:
 """
 
 import json
-import q 
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.connection import Connection
