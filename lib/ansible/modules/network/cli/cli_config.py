@@ -196,6 +196,7 @@ backup_path:
 """
 
 import json
+import q 
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.connection import Connection
@@ -234,7 +235,7 @@ def run(module, device_operations, connection, candidate, running, rollback_id):
     diff_replace = module.params['diff_replace']
     diff_match = module.params['diff_match']
     diff_ignore_lines = module.params['diff_ignore_lines']
-
+    
     commit = not module.check_mode
 
     if replace in ('yes', 'true', 'True'):
@@ -290,6 +291,7 @@ def run(module, device_operations, connection, candidate, running, rollback_id):
             if commit:
                 connection.edit_config(**kwargs)
             result['changed'] = True
+            result['commands'] = (str(config_diff).split('\n'))    
 
         if banner_diff:
             candidate = json.dumps(banner_diff)
@@ -349,7 +351,6 @@ def main():
                            supports_check_mode=True)
 
     result = {'changed': False}
-
     connection = Connection(module._socket_path)
     capabilities = module.from_json(connection.get_capabilities())
 
@@ -380,9 +381,8 @@ def main():
             result.update(run(module, device_operations, connection, candidate, running, rollback_id))
         except Exception as exc:
             module.fail_json(msg=to_text(exc))
-
     module.exit_json(**result)
-
-
+    
+     
 if __name__ == '__main__':
     main()
