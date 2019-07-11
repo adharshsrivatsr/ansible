@@ -7,7 +7,6 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-
 ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'network'}
@@ -184,7 +183,7 @@ EXAMPLES = """
 
 RETURN = """
 commands:
-  description: The set of commands that will be pushed to the remote device
+  description: The set of commands that will be pushed to the remote device. Note: The commands will be returned only for platforms that have C(supports_onbox_diff) set to I(false). For other platforms, using the C(--diff) option with the playbook will return the difference in configuration.                
   returned: always
   type: list
   sample: ['interface Loopback999', 'no shutdown']
@@ -290,7 +289,7 @@ def run(module, device_operations, connection, candidate, running, rollback_id):
             if commit:
                 connection.edit_config(**kwargs)
             result['changed'] = True
-            result['commands'] = (str(config_diff).split('\n'))    
+            result['commands'] = ((config_diff).split('\n'))    
 
         if banner_diff:
             candidate = json.dumps(banner_diff)
@@ -301,7 +300,7 @@ def run(module, device_operations, connection, candidate, running, rollback_id):
             if commit:
                 connection.edit_banner(**kwargs)
             result['changed'] = True
-
+    
     if module._diff:
         if 'diff' in resp:
             result['diff'] = {'prepared': resp['diff']}
