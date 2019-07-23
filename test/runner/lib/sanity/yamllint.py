@@ -1,5 +1,6 @@
 """Sanity test using yamllint."""
-from __future__ import absolute_import, print_function
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 import json
 import os
@@ -14,12 +15,21 @@ from lib.sanity import (
 
 from lib.util import (
     SubprocessError,
-    run_command,
     display,
+    ANSIBLE_ROOT,
+    is_subdir,
+)
+
+from lib.util_common import (
+    run_command,
 )
 
 from lib.config import (
     SanityConfig,
+)
+
+from lib.data import (
+    data_context,
 )
 
 
@@ -33,19 +43,16 @@ class YamllintTest(SanitySingleVersion):
         """
         paths = [
             [i.path for i in targets.include if os.path.splitext(i.path)[1] in ('.yml', '.yaml')],
-
-            [i.path for i in targets.include if os.path.splitext(i.path)[1] == '.py' and
-             os.path.basename(i.path) != '__init__.py' and
-             i.path.startswith('lib/ansible/plugins/')],
-
-            [i.path for i in targets.include if os.path.splitext(i.path)[1] == '.py' and
-             os.path.basename(i.path) != '__init__.py' and
-             i.path.startswith('lib/ansible/modules/')],
-
-            [i.path for i in targets.include if os.path.splitext(i.path)[1] == '.py' and
-             os.path.basename(i.path) != '__init__.py' and
-             i.path.startswith('lib/ansible/plugins/doc_fragments/')],
         ]
+
+        for plugin_type, plugin_path in sorted(data_context().content.plugin_paths.items()):
+            if plugin_type == 'module_utils':
+                continue
+
+            paths.append([target.path for target in targets.include if
+                          os.path.splitext(target.path)[1] == '.py' and
+                          os.path.basename(target.path) != '__init__.py' and
+                          is_subdir(target.path, plugin_path)])
 
         paths = [sorted(p) for p in paths if p]
 
@@ -71,7 +78,7 @@ class YamllintTest(SanitySingleVersion):
         """
         cmd = [
             args.python_executable,
-            'test/sanity/yamllint/yamllinter.py',
+            os.path.join(ANSIBLE_ROOT, 'test/sanity/yamllint/yamllinter.py'),
         ]
 
         data = '\n'.join(paths)

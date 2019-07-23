@@ -186,7 +186,7 @@ options:
     - '     Default: C(None) thick disk, no eagerzero.'
     - ' - C(datastore) (string): The name of datastore which will be used for the disk. If C(autoselect_datastore) is set to True,
           then will select the less used datastore whose name contains this "disk.datastore" string.'
-    - ' - C(filename) (string): Existing disk image to be used. Filename must be already exists on the datastore.'
+    - ' - C(filename) (string): Existing disk image to be used. Filename must already exist on the datastore.'
     - '   Specify filename string in C([datastore_name] path/to/file.vmdk) format. Added in version 2.8.'
     - ' - C(autoselect_datastore) (bool): select the less used datastore. "disk.datastore" and "disk.autoselect_datastore"
           will not be used if C(datastore) is specified outside this C(disk) configuration.'
@@ -589,6 +589,7 @@ except ImportError:
 
 from random import randint
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.common.network import is_mac
 from ansible.module_utils._text import to_text, to_native
 from ansible.module_utils.vmware import (find_obj, gather_vm_facts, get_all_objs,
                                          compile_folder_path_for_object, serialize_spec,
@@ -729,25 +730,13 @@ class PyVmomiDeviceHelper(object):
         nic.device.connectable.startConnected = bool(device_infos.get('start_connected', True))
         nic.device.connectable.allowGuestControl = bool(device_infos.get('allow_guest_control', True))
         nic.device.connectable.connected = True
-        if 'mac' in device_infos and self.is_valid_mac_addr(device_infos['mac']):
+        if 'mac' in device_infos and is_mac(device_infos['mac']):
             nic.device.addressType = 'manual'
             nic.device.macAddress = device_infos['mac']
         else:
             nic.device.addressType = 'generated'
 
         return nic
-
-    @staticmethod
-    def is_valid_mac_addr(mac_addr):
-        """
-        Function to validate MAC address for given string
-        Args:
-            mac_addr: string to validate as MAC address
-
-        Returns: (Boolean) True if string is valid MAC address, otherwise False
-        """
-        mac_addr_regex = re.compile('[0-9a-f]{2}([-:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$')
-        return bool(mac_addr_regex.match(mac_addr))
 
     def integer_value(self, input_value, name):
         """
@@ -907,7 +896,9 @@ class PyVmomiHelper(PyVmomi):
                     rai_change_detected = True
 
             if 'mem_reservation' in self.params['hardware'] or 'memory_reservation' in self.params['hardware']:
-                mem_reservation = self.params['hardware'].get('mem_reservation') or self.params['hardware'].get('memory_reservation') or None
+                mem_reservation = self.params['hardware'].get('mem_reservation')
+                if mem_reservation is None:
+                    mem_reservation = self.params['hardware'].get('memory_reservation')
                 try:
                     mem_reservation = int(mem_reservation)
                 except ValueError:
@@ -1101,7 +1092,7 @@ class PyVmomiHelper(PyVmomi):
             if 'max_connections' in self.params['hardware']:
                 # maxMksConnections == max_connections
                 self.configspec.maxMksConnections = int(self.params['hardware']['max_connections'])
-                if vm_obj is None or self.configspec.maxMksConnections != vm_obj.config.hardware.maxMksConnections:
+                if vm_obj is None or self.configspec.maxMksConnections != vm_obj.config.maxMksConnections:
                     self.change_detected = True
 
             if 'nested_virt' in self.params['hardware']:
@@ -1273,7 +1264,7 @@ class PyVmomiHelper(PyVmomi):
                                           " type from ['%s']." % (network['device_type'],
                                                                   "', '".join(validate_device_types)))
 
-            if 'mac' in network and not PyVmomiDeviceHelper.is_valid_mac_addr(network['mac']):
+            if 'mac' in network and not is_mac(network['mac']):
                 self.module.fail_json(msg="Device MAC address '%s' is invalid."
                                           " Please provide correct MAC address." % network['mac'])
 
@@ -1862,7 +1853,9 @@ class PyVmomiHelper(PyVmomi):
                 continue
             elif vm_obj is None or self.params['template']:
                 # We are creating new VM or from Template
-                diskspec.fileOperation = vim.vm.device.VirtualDeviceSpec.FileOperation.create
+                # Only create virtual device if not backed by vmdk in original template
+                if diskspec.device.backing.fileName == '':
+                    diskspec.fileOperation = vim.vm.device.VirtualDeviceSpec.FileOperation.create
 
             # which datastore?
             if expected_disk_spec.get('datastore'):
@@ -2221,7 +2214,7 @@ class PyVmomiHelper(PyVmomi):
                 # Convert disk present in template if is set
                 if self.params['convert']:
                     for device in vm_obj.config.hardware.device:
-                        if hasattr(device.backing, 'fileName'):
+                        if isinstance(device, vim.vm.device.VirtualDisk):
                             disk_locator = vim.vm.RelocateSpec.DiskLocator()
                             disk_locator.diskBackingInfo = vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
                             if self.params['convert'] in ['thin']:
