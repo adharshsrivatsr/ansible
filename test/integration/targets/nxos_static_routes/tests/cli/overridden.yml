@@ -36,7 +36,6 @@
     - assert:
         that:
           - "result.changed == true"
-          - "ansible_facts.network_resources.static_routes == result.before"
           - "'vrf context trial_vrf' in result.commands"
           - "'no ip route 192.0.2.64/28 192.0.2.22 tag 4' in result.commands"
           - "'no ip route 192.0.2.64/28 192.0.2.23 name merged_route 1' in result.commands"
@@ -45,13 +44,6 @@
           - "'vrf context default' in result.commands"
           - "'no ip route 192.0.2.16/28 192.0.2.24 name new_route' in result.commands"
           - "'no ip route 192.0.2.80/28 192.0.2.26 tag 12' in result.commands"
-
-    - name: Gather static_routes post facts
-      nxos_facts: *facts
-
-    - assert:
-        that:
-          - "ansible_facts.network_resources.static_routes == result.after"
 
     - name: Idempotence - overridden
       nxos_static_routes: *overridden
